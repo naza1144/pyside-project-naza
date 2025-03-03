@@ -1,151 +1,98 @@
-import sys
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-    QLabel, QPushButton, QLineEdit, QScrollArea
-)
-from PySide6.QtCore import Qt, QThread, Signal, QTimer
-from PySide6.QtGui import QIcon, QPixmap, QRegion
-from ollama_service import get_ollama_response  
+import streamlit as st
+import os
+import json
+from ollama_service import get_ollama_response
 
-class OllamaWorker(QThread):
-    """ เธรดสำหรับเรียกใช้ Ollama API โดยไม่ให้ UI ค้าง """
-    response_ready = Signal(str)  # ส่งข้อความตอบกลับไปยัง UI
+# กำหนดโฟลเดอร์เก็บแชท
+CHAT_HISTORY_DIR = "chat_history"
+DEFAULT_CHAT = "แชทแรกของเรา"
 
-    def __init__(self, message):
-        super().__init__()
-        self.message = message
+# สร้างโฟลเดอร์ถ้ายังไม่มี
+if not os.path.exists(CHAT_HISTORY_DIR):
+    os.makedirs(CHAT_HISTORY_DIR)
 
-    def run(self):
-        response = get_ollama_response(self.message)  # เรียก API ของ Ollama
-        self.response_ready.emit(response)  # ส่งข้อความตอบกลับไปยัง UI
+# ฟังก์ชันสร้างแชทเริ่มต้น (แชทแรกของเรา)
+def create_default_chat():
+    file_path = os.path.join(CHAT_HISTORY_DIR, f"{DEFAULT_CHAT}.json")
+    if not os.path.exists(file_path):  # ถ้ายังไม่มี ให้สร้างไฟล์
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump([("assistant", "สวัสดี! นี่คือแชทแรกของเรา 💖")], file, ensure_ascii=False, indent=4)
 
+# โหลดรายการแชทเก่าทั้งหมด
+def load_chat_list():
+    return [f.replace(".json", "") for f in os.listdir(CHAT_HISTORY_DIR) if f.endswith(".json")]
 
-class OOPChat(QMainWindow):
-    """ คลาสหลักของแอปพลิเคชันแชท """
-    
-    def __init__(self):
-        super().__init__()
-        self.setup_main_window()
-        self.create_chat_area()
-        self.create_input_area()
+# ฟังก์ชันโหลดแชทจากไฟล์ JSON
+def load_chat_history(chat_name):
+    file_path = os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json")
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as file:
+            return json.load(file)
+    return []
 
-    def setup_main_window(self):
-        """ ตั้งค่าหน้าต่างหลักของแอปพลิเคชัน """
-        self.setWindowTitle("DeepSeek-R1 Chat")
-        self.resize(600, 500)
-        self.setWindowIcon(QIcon('pyside-project-naza/logo/images.png'))
+# ฟังก์ชันบันทึกแชทลงไฟล์ JSON
+def save_chat_history(chat_name, messages):
+    file_path = os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json")
+    with open(file_path, "w", encoding="utf-8") as file:
+        json.dump(messages, file, ensure_ascii=False, indent=4)
 
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        self.layout = QVBoxLayout(central_widget)
+# สร้างแชทเริ่มต้นถ้ายังไม่มี
+create_default_chat()
 
-    def create_chat_area(self):
-        """ สร้างพื้นที่แชท """
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
+# โหลดรายการแชท
+chat_files = load_chat_list()
 
-        self.chat_container = QWidget()
-        self.chat_layout = QVBoxLayout(self.chat_container)
-        self.chat_layout.setAlignment(Qt.AlignTop)
-        self.scroll_area.setWidget(self.chat_container)
+# Sidebar: แสดงรายการแชท
+st.sidebar.title("📂 แชทเก่า")
+selected_chat = st.sidebar.selectbox("เลือกแชท", ["➕ สร้างแชทใหม่"] + chat_files, index=1 if DEFAULT_CHAT in chat_files else 0)
 
-        self.layout.addWidget(self.scroll_area)
+# ปุ่มลบแชท (แสดงเฉพาะเมื่อไม่ใช่แชทแรกของเรา)
+if selected_chat != "➕ สร้างแชทใหม่" and selected_chat != DEFAULT_CHAT:
+    if st.sidebar.button("🗑️ ลบแชทนี้"):
+        os.remove(os.path.join(CHAT_HISTORY_DIR, f"{selected_chat}.json"))
+        st.rerun()  # รีโหลดหน้า
 
-    def create_input_area(self):
-        """ สร้างช่องป้อนข้อความ และปุ่มส่ง """
-        input_layout = QHBoxLayout()
-        self.input_field = QLineEdit()
-        self.input_field.setFixedHeight(40)
-        self.input_field.returnPressed.connect(self.send_message)
+# ถ้าผู้ใช้เลือก "สร้างแชทใหม่"
+if selected_chat == "➕ สร้างแชทใหม่":
+    new_chat_name = st.sidebar.text_input("ตั้งชื่อแชทใหม่")
+    if st.sidebar.button("✅ สร้าง"):
+        if new_chat_name:
+            new_chat_file = os.path.join(CHAT_HISTORY_DIR, f"{new_chat_name}.json")
+            with open(new_chat_file, "w", encoding="utf-8") as file:
+                json.dump([], file, ensure_ascii=False, indent=4)  # สร้างไฟล์ใหม่
+            st.rerun()
 
-        self.send_button = QPushButton("SEND")
-        self.send_button.clicked.connect(self.send_message)
+# โหลดแชทปัจจุบัน
+if selected_chat != "➕ สร้างแชทใหม่":
+    st.title(f"💬 {selected_chat}")
+    st.session_state.messages = load_chat_history(selected_chat)
+else:
+    st.title("💬 มีอะไรให้ฉันช่วยบ้างครับ?")
+    st.session_state.messages = []
 
-        input_layout.addWidget(self.input_field)
-        input_layout.addWidget(self.send_button)
-        input_layout.setContentsMargins(10, 10, 10, 10)
+# แสดงประวัติแชท
+for role, content in st.session_state.messages:
+    with st.chat_message(role):
+        st.markdown(content)
 
-        self.layout.addLayout(input_layout)
+# ช่องป้อนข้อความ
+user_input = st.chat_input("พิมพ์ข้อความที่นี่...")
 
-    def send_message(self):
-        """ ส่งข้อความของผู้ใช้ และปิดการป้อนข้อความจนกว่าจะได้รับผลลัพธ์ """
-        user_message = self.input_field.text().strip()
-        if user_message:
-            self.add_message(f"User: {user_message}", alignment=Qt.AlignRight)
-            self.input_field.clear()
+if user_input:
+    # แสดงข้อความของผู้ใช้
+    st.session_state.messages.append(("user", user_input))
+    with st.chat_message("user"):
+        st.markdown(user_input)
 
-            # ปิดช่องป้อนข้อความ และปุ่มส่ง เพื่อป้องกันการกดซ้ำ
-            self.input_field.setDisabled(True)
-            self.send_button.setDisabled(True)
+    # ใช้ spinner ขณะรอผลลัพธ์จาก DeepSeek-R1
+    with st.spinner("🤖 DeepSeek-R1 กำลังคิด..."):
+        response = get_ollama_response(user_input)
 
-            # สร้างและรันเธรดสำหรับการประมวลผลข้อความ
-            self.worker = OllamaWorker(user_message)
-            self.worker.response_ready.connect(self.display_response)
-            self.worker.start()
+    # แสดงข้อความตอบกลับจาก AI
+    st.session_state.messages.append(("assistant", response))
+    with st.chat_message("assistant"):
+        st.markdown(response)
 
-    def display_response(self, response):
-        """ แสดงข้อความตอบกลับจาก DeepSeek-R1 และเปิดการใช้งานช่องป้อนข้อความอีกครั้ง """
-        self.add_message(f"DeepSeek-R1: {response}", alignment=Qt.AlignLeft)
-
-        # เปิดช่องป้อนข้อความและปุ่มส่งเมื่อได้รับผลลัพธ์
-        self.input_field.setDisabled(False)
-        self.send_button.setDisabled(False)
-        self.input_field.setFocus()  # ให้โฟกัสกลับไปที่ช่องป้อนข้อความ
-
-        # 📌 เลื่อนลงล่างสุดเมื่อข้อความของ DeepSeek-R1 ถูกเพิ่ม
-        QTimer.singleShot(0, self.scroll_to_bottom)
-
-    def add_message(self, text, alignment=Qt.AlignLeft):
-        """ เพิ่มข้อความลงในพื้นที่แชท และปรับขนาดกล่องข้อความให้พอดีกับเนื้อหา """
-        label = QLabel(text)
-        label.setWordWrap(True)
-        label.adjustSize()
-
-        # คำนวณขนาดของ QLabel ตามข้อความ
-        content_width = label.sizeHint().width() + 20  # +20 เพื่อเผื่อ padding
-        max_width = self.scroll_area.width() - 50  # จำกัดขนาดไม่ให้เกิน ScrollArea
-        actual_width = min(content_width, max_width)
-
-        label.setMinimumWidth(actual_width)
-        label.setMaximumWidth(actual_width)
-
-        # กำหนดสไตล์กล่องข้อความ
-        if alignment == Qt.AlignRight:
-            label.setStyleSheet("""
-                color: white;
-                background: #3f3a3a;
-                padding: 8px 12px;
-                border-radius: 12px;
-                font-size: 14px;
-            """)
-        else:
-            label.setStyleSheet("""
-                color: white;
-                background: #525252;
-                padding: 8px 12px;
-                border-radius: 12px;
-                font-size: 14px;
-            """)
-
-        # สร้าง container สำหรับข้อความ
-        container = QWidget()
-        container_layout = QHBoxLayout(container)
-        container_layout.addWidget(label)
-        container_layout.setAlignment(alignment)
-        container_layout.setContentsMargins(10, 5, 10, 5)
-
-        self.chat_layout.addWidget(container)
-
-        # 📌 เลื่อน ScrollBar ไปด้านล่างสุดเสมอ
-        QTimer.singleShot(0, self.scroll_to_bottom)
-
-    def scroll_to_bottom(self):
-        """ เลื่อน ScrollBar ไปด้านล่างสุดของ QScrollArea """
-        self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = OOPChat()
-    window.show()
-    sys.exit(app.exec())
+    # บันทึกแชทลงไฟล์
+    if selected_chat != "➕ สร้างแชทใหม่":
+        save_chat_history(selected_chat, st.session_state.messages)
