@@ -3,24 +3,32 @@ import os
 import json
 from ollama_service import get_ollama_response
 
-# กำหนดโฟลเดอร์เก็บแชท
+# CSS สำหรับตกแต่ง Sidebar
+st.markdown("""
+    <style>
+        st.sidebar 
+    </style>
+""", unsafe_allow_html=True)
+
+# กำหนดโฟลเดอร์สำหรับเก็บแชทเก่า
 CHAT_HISTORY_DIR = "chat_history"
-DEFAULT_CHAT = "แชทแรกของเรา"
 
 # สร้างโฟลเดอร์ถ้ายังไม่มี
 if not os.path.exists(CHAT_HISTORY_DIR):
     os.makedirs(CHAT_HISTORY_DIR)
 
-# ฟังก์ชันสร้างแชทเริ่มต้น (แชทแรกของเรา)
-def create_default_chat():
-    file_path = os.path.join(CHAT_HISTORY_DIR, f"{DEFAULT_CHAT}.json")
-    if not os.path.exists(file_path):  # ถ้ายังไม่มี ให้สร้างไฟล์
-        with open(file_path, "w", encoding="utf-8") as file:
-            json.dump([("assistant", "สวัสดี! นี่คือแชทแรกของเรา 💖")], file, ensure_ascii=False, indent=4)
-
 # โหลดรายการแชทเก่าทั้งหมด
-def load_chat_list():
-    return [f.replace(".json", "") for f in os.listdir(CHAT_HISTORY_DIR) if f.endswith(".json")]
+chat_files = [f.replace(".json", "") for f in os.listdir(CHAT_HISTORY_DIR) if f.endswith(".json")]
+
+# Sidebar: แสดงรายการแชทเก่าและตัวเลือกการจัดการ
+st.sidebar.title("📂 แชทเก่า")
+selected_chat = st.sidebar.selectbox("เลือกแชท", ["➕ สร้างแชทใหม่"] + chat_files)
+
+# ปุ่มลบแชท (แสดงเฉพาะเมื่อมีแชทให้ลบ)
+if selected_chat != "➕ สร้างแชทใหม่":
+    if st.sidebar.button("🗑️ ลบแชทนี้"):
+        os.remove(os.path.join(CHAT_HISTORY_DIR, f"{selected_chat}.json"))
+        st.rerun()  # รีโหลดหน้าเพื่ออัปเดตรายการแชท
 
 # ฟังก์ชันโหลดแชทจากไฟล์ JSON
 def load_chat_history(chat_name):
@@ -36,22 +44,6 @@ def save_chat_history(chat_name, messages):
     with open(file_path, "w", encoding="utf-8") as file:
         json.dump(messages, file, ensure_ascii=False, indent=4)
 
-# สร้างแชทเริ่มต้นถ้ายังไม่มี
-create_default_chat()
-
-# โหลดรายการแชท
-chat_files = load_chat_list()
-
-# Sidebar: แสดงรายการแชท
-st.sidebar.title("📂 แชทเก่า")
-selected_chat = st.sidebar.selectbox("เลือกแชท", ["➕ สร้างแชทใหม่"] + chat_files, index=1 if DEFAULT_CHAT in chat_files else 0)
-
-# ปุ่มลบแชท (แสดงเฉพาะเมื่อไม่ใช่แชทแรกของเรา)
-if selected_chat != "➕ สร้างแชทใหม่" and selected_chat != DEFAULT_CHAT:
-    if st.sidebar.button("🗑️ ลบแชทนี้"):
-        os.remove(os.path.join(CHAT_HISTORY_DIR, f"{selected_chat}.json"))
-        st.rerun()  # รีโหลดหน้า
-
 # ถ้าผู้ใช้เลือก "สร้างแชทใหม่"
 if selected_chat == "➕ สร้างแชทใหม่":
     new_chat_name = st.sidebar.text_input("ตั้งชื่อแชทใหม่")
@@ -59,12 +51,12 @@ if selected_chat == "➕ สร้างแชทใหม่":
         if new_chat_name:
             new_chat_file = os.path.join(CHAT_HISTORY_DIR, f"{new_chat_name}.json")
             with open(new_chat_file, "w", encoding="utf-8") as file:
-                json.dump([], file, ensure_ascii=False, indent=4)  # สร้างไฟล์ใหม่
+                json.dump([], file, ensure_ascii=False, indent=4)  # สร้างไฟล์ใหม่ที่ว่างเปล่า
             st.rerun()
 
 # โหลดแชทปัจจุบัน
 if selected_chat != "➕ สร้างแชทใหม่":
-    st.title(f"💬 {selected_chat}")
+    st.title(f"💬 แชท: {selected_chat}")
     st.session_state.messages = load_chat_history(selected_chat)
 else:
     st.title("💬 มีอะไรให้ฉันช่วยบ้างครับ?")
