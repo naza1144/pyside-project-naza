@@ -5,7 +5,7 @@ def get_ollama_response(user_message):
     full_response = ""
     
     try:
-        for chunk in chat(model="deepseek-r1", messages=[{'role': 'user', 'content': user_message}], stream=True):
+        for chunk in chat(model="phi3", messages=[{'role': 'user', 'content': user_message}], stream=True):
             if "message" in chunk and "content" in chunk["message"]:
                 full_response += chunk["message"]["content"]
     except Exception as e:

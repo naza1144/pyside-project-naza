@@ -3,96 +3,154 @@ import os
 import json
 from ollama_service import get_ollama_response
 
-st.markdown("""
+# URLs หรือ Path ของรูปโปรไฟล์
+USER_AVATAR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTo9Mw4GhrGCmoZPMCedud0jCIyEGRhB6OIwQ&s"
+AI_AVATAR = "https://tr.rbxcdn.com/180DAY-a0a46bc4bb969aabc6133811ec8ff505/420/420/LayeredAccessory/Webp/noFilter"
+
+# CSS + JavaScript สำหรับ Animation ของ Title
+st.markdown(f"""
     <style>
-        .chat-container {
-            max-height: 500px;
-            overflow-y: auto;
-            padding: 10px;
-        }
+        .fade-out {{
+            animation: fadeUp 1s forwards;
+        }}
+
+        @keyframes fadeUp {{
+            0% {{ opacity: 1; transform: translateY(0px); }}
+            100% {{ opacity: 0; transform: translateY(-50px); }}
+        }}
+        
+        .chat-container {{ display: flex; flex-direction: column; gap: 10px; }}
+        .message-container {{ display: flex; align-items: center; margin-bottom: 10px; }}
+        .user-message {{ background-color: #504f4f; color: white; padding: 10px 15px; border-radius: 10px; max-width: 60%; word-wrap: break-word; }}
+        .assistant-message {{ background-color: transparent; padding: 10px 15px; border-radius: 10px; max-width: 60%; word-wrap: break-word; }}
+        .avatar {{ width: 40px; height: 40px; border-radius: 50%; margin: 0 10px; }}
+        .user-container {{ justify-content: flex-end; }}
+        .assistant-container {{ justify-content: flex-start; }}
     </style>
 """, unsafe_allow_html=True)
 
 # กำหนดโฟลเดอร์สำหรับเก็บแชทเก่า
 CHAT_HISTORY_DIR = "chat_history"
-if not os.path.exists(CHAT_HISTORY_DIR):
-    os.makedirs(CHAT_HISTORY_DIR)
+os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
 
 # โหลดรายการแชทเก่าทั้งหมด
 chat_files = [f.replace(".json", "") for f in os.listdir(CHAT_HISTORY_DIR) if f.endswith(".json")]
 
-# Sidebar: เลือกแชทเก่าหรือสร้างใหม่
-st.sidebar.title("📂 แชทเก่า")
-selected_chat = st.sidebar.selectbox("เลือกแชท", ["➕ สร้างแชทใหม่"] + chat_files)
+# Sidebar: เลือกแชทเก่าหรือสร้างแชทใหม่
+st.sidebar.title("📂 Chat History")
+selected_chat = st.sidebar.selectbox("Select a chat", ["➕ Create New Chat"] + chat_files)
 
 # ปุ่มลบแชท
-if selected_chat != "➕ สร้างแชทใหม่":
-    if st.sidebar.button("🗑️ ลบแชทนี้"):
+if selected_chat != "➕ Create New Chat":
+    if st.sidebar.button("🗑️ Delete This Chat"):
         os.remove(os.path.join(CHAT_HISTORY_DIR, f"{selected_chat}.json"))
         st.rerun()
+
+# ปุ่มสร้างแชทใหม่
+if selected_chat == "➕ Create New Chat":
+    new_chat_name = st.sidebar.text_input("Enter new chat name")
+    if st.sidebar.button("✅ Create"):
+        if new_chat_name:
+            with open(os.path.join(CHAT_HISTORY_DIR, f"{new_chat_name}.json"), "w", encoding="utf-8") as file:
+                json.dump([], file, ensure_ascii=False, indent=4)
+            st.rerun()
 
 # ฟังก์ชันโหลดและบันทึกแชท
 def load_chat_history(chat_name):
     file_path = os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json")
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
-            return json.load(file)
-    return []
+    return json.load(open(file_path, "r", encoding="utf-8")) if os.path.exists(file_path) else []
 
 def save_chat_history(chat_name, messages):
-    file_path = os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json")
-    with open(file_path, "w", encoding="utf-8") as file:
+    with open(os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json"), "w", encoding="utf-8") as file:
         json.dump(messages, file, ensure_ascii=False, indent=4)
-
-# กรณีสร้างแชทใหม่
-if selected_chat == "➕ สร้างแชทใหม่":
-    new_chat_name = st.sidebar.text_input("ตั้งชื่อแชทใหม่")
-    if st.sidebar.button("✅ สร้าง"):
-        if new_chat_name:
-            new_chat_file = os.path.join(CHAT_HISTORY_DIR, f"{new_chat_name}.json")
-            with open(new_chat_file, "w", encoding="utf-8") as file:
-                json.dump([], file, ensure_ascii=False, indent=4)
-            st.rerun()
 
 # โหลดแชทปัจจุบัน
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if selected_chat != "➕ สร้างแชทใหม่":
+if selected_chat != "➕ Create New Chat":
     st.session_state.messages = load_chat_history(selected_chat)
 
-st.title(f"DeepSeek-r1: {selected_chat if selected_chat != '➕ สร้างแชทใหม่' else'╰(*°▽°*)╯' }")
+# **แสดง Title พร้อม Animation เมื่อเริ่มต้น และหายไปหลังจากเริ่มแชท**
+if not st.session_state.messages:
+    st.markdown(
+        f"""
+        <h1 id="title" style="font-size:35px; color:#ffff;">
+            HI, what do you want me to help with? {selected_chat if selected_chat != '➕ Create New Chat' else ''}
+        </h1>
+        <script>
+            function removeTitle() {{
+                document.getElementById("title").classList.add("fade-out");
+                setTimeout(() => {{
+                    document.getElementById("title").style.display = "none";
+                }}, 15000);
+            }}
+        </script>
+        """, 
+        unsafe_allow_html=True
+    )
 
-# กล่องแสดงแชทที่สามารถเลื่อนดูได้
+# กล่องแสดงแชท
 with st.container():
     chat_box = st.container()
     with chat_box:
         for role, content in st.session_state.messages:
-            with st.chat_message(role):
-                st.markdown(content)
+            if role == "user":
+                st.markdown(
+                    f"""
+                    <div class="message-container user-container">
+                        <div class="user-message">{content}</div>
+                        <img src="{USER_AVATAR}" class="avatar">
+                    </div>
+                    """, unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f"""
+                    <div class="message-container assistant-container">
+                        <img src="{AI_AVATAR}" class="avatar">
+                        <div class="assistant-message">{content}</div>
+                    </div>
+                    """, unsafe_allow_html=True
+                )
 
 # ช่องป้อนข้อความ
-user_input = st.chat_input("พิมพ์ข้อความที่นี่...")
+user_input = st.chat_input("Type a message...")
 
 if user_input:
-    # แสดงข้อความของผู้ใช้
+    # เมื่อมีข้อความแรก ให้เรียก JavaScript เพื่อลบ Title
+    st.components.v1.html("<script>removeTitle();</script>", height=0)
+
+    # แสดงข้อความของผู้ใช้ (ฝั่งขวา)
     st.session_state.messages.append(("user", user_input))
     with chat_box:
-        with st.chat_message("user"):
-            st.markdown(user_input)
+        st.markdown(
+            f"""
+            <div class="message-container user-container">
+                <div class="user-message">{user_input}</div>
+                <img src="{USER_AVATAR}" class="avatar">
+            </div>
+            """, unsafe_allow_html=True
+        )
 
     # ใช้ spinner ขณะรอผลลัพธ์
-    with st.spinner("🤖 กำลังคิด..."):
+    with st.spinner("🤖 Thinking..."):
         response = get_ollama_response(user_input)
 
-    # แสดงข้อความตอบกลับจาก AI
+    # แสดงข้อความตอบกลับจาก AI (ฝั่งซ้าย)
     st.session_state.messages.append(("assistant", response))
     with chat_box:
-        with st.chat_message("assistant"):
-            st.markdown(response)
+        st.markdown(
+            f"""
+            <div class="message-container assistant-container">
+                <img src="{AI_AVATAR}" class="avatar">
+                <div class="assistant-message">{response}</div>
+            </div>
+            """, unsafe_allow_html=True
+        )
 
     # บันทึกแชท
-    if selected_chat != "➕ สร้างแชทใหม่":
+    if selected_chat != "➕ Create New Chat":
         save_chat_history(selected_chat, st.session_state.messages)
 
     st.rerun()  # รีโหลดหน้าเพื่อให้ข้อความใหม่ปรากฏ
