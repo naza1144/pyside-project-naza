@@ -3,6 +3,14 @@ import os
 import json
 from ollama_service import get_ollama_response
 
+
+st.set_page_config(
+    page_title="Ratatouille",  # 🔹 เปลี่ยนเป็นชื่อที่คุณต้องการ
+    page_icon="https://cdn-icons-png.flaticon.com/512/2297/2297338.png",  # 🔹 สามารถใช้ Emoji หรือ URL รูปภาพ
+    layout="wide"  # 🔹 กำหนดให้เว็บแอปเต็มหน้าจอ
+)
+
+
 # URLs หรือ Path ของรูปโปรไฟล์
 USER_AVATAR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTo9Mw4GhrGCmoZPMCedud0jCIyEGRhB6OIwQ&s"
 AI_AVATAR = "https://tr.rbxcdn.com/180DAY-a0a46bc4bb969aabc6133811ec8ff505/420/420/LayeredAccessory/Webp/noFilter"
@@ -36,24 +44,33 @@ os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
 # โหลดรายการแชทเก่าทั้งหมด
 chat_files = [f.replace(".json", "") for f in os.listdir(CHAT_HISTORY_DIR) if f.endswith(".json")]
 
-# Sidebar: เลือกแชทเก่าหรือสร้างแชทใหม่
+# ===== 🎨 ปรับ Sidebar ให้แสดงรายการแชทเป็นปุ่มที่กดได้ พร้อมปุ่มลบ ===== #
 st.sidebar.title("📂 Chat History")
-selected_chat = st.sidebar.selectbox("Select a chat", ["➕ Create New Chat"] + chat_files)
 
-# ปุ่มลบแชท
-if selected_chat != "➕ Create New Chat":
-    if st.sidebar.button("🗑️ Delete This Chat"):
-        os.remove(os.path.join(CHAT_HISTORY_DIR, f"{selected_chat}.json"))
-        st.rerun()
+selected_chat = None  # ค่าเริ่มต้นของแชทที่เลือก
+
+# แสดงแชทเป็นปุ่มกดเลือกได้ + ปุ่มลบแชท
+for chat_name in sorted(chat_files, reverse=True):
+    col1, col2 = st.sidebar.columns([0.8, 0.2])
+    with col1:
+        if st.button(f"📄 {chat_name}"):
+            selected_chat = chat_name  # กำหนดว่าเลือกแชทไหน
+    with col2:
+        if st.button("🗑️", key=f"delete_{chat_name}"):  # ปุ่มลบแชท
+            os.remove(os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json"))  # ลบไฟล์ JSON
+            st.rerun()  # รีโหลด Sidebar เพื่ออัปเดตรายการแชท
+
+        
+
+st.sidebar.markdown("---")  # เส้นคั่น
 
 # ปุ่มสร้างแชทใหม่
-if selected_chat == "➕ Create New Chat":
-    new_chat_name = st.sidebar.text_input("Enter new chat name")
-    if st.sidebar.button("✅ Create"):
-        if new_chat_name:
-            with open(os.path.join(CHAT_HISTORY_DIR, f"{new_chat_name}.json"), "w", encoding="utf-8") as file:
-                json.dump([], file, ensure_ascii=False, indent=4)
-            st.rerun()
+new_chat_name = st.sidebar.text_input("➕ Create New Chat")
+if st.sidebar.button("✅ Create") and new_chat_name:
+    with open(os.path.join(CHAT_HISTORY_DIR, f"{new_chat_name}.json"), "w", encoding="utf-8") as file:
+        json.dump([], file, ensure_ascii=False, indent=4)
+    st.rerun()  # รีโหลดหน้าเพื่ออัปเดตรายการแชท
+
 
 # ฟังก์ชันโหลดและบันทึกแชท
 def load_chat_history(chat_name):
