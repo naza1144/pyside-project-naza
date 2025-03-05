@@ -31,6 +31,7 @@ st.markdown(f"""
         .avatar {{ width: 40px; height: 40px; border-radius: 50%; margin: 0 10px; }}
         .user-container {{ justify-content: flex-end; }}
         .assistant-container {{ justify-content: flex-start; }}
+        .email_icon
     </style>
 """, unsafe_allow_html=True)
 
@@ -84,7 +85,6 @@ if "messages" not in st.session_state:
 if selected_chat:
     st.session_state.messages = load_chat_history(selected_chat)
 else:
-    # ไม่มีแชทที่เลือกแสดงข้อความเพื่อให้ผู้ใช้สร้างแชทก่อน
     st.write("Please create or select a chat first.")
 
 # **แสดง Title พร้อม Animation เมื่อเริ่มต้น และหายไปหลังจากเริ่มแชท**
