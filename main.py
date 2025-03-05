@@ -4,9 +4,9 @@ import json
 from ollama_service import get_ollama_response
 
 st.set_page_config(
-    page_title="Ratatouille",
-    page_icon="https://cdn-icons-png.flaticon.com/512/2297/2297338.png",
-    layout="wide"
+    page_title="Ratatouille",  # 🔹 เปลี่ยนเป็นชื่อที่คุณต้องการ
+    page_icon="https://cdn-icons-png.flaticon.com/512/2297/2297338.png",  # 🔹 สามารถใช้ Emoji หรือ URL รูปภาพ
+    layout="wide"  # 🔹 กำหนดให้เว็บแอปเต็มหน้าจอ
 )
 
 # URLs หรือ Path ของรูปโปรไฟล์
@@ -23,6 +23,7 @@ st.markdown(f"""
             0% {{ opacity: 1; transform: translateY(0px); }}
             100% {{ opacity: 0; transform: translateY(-50px); }}
         }}
+        
         .chat-container {{ display: flex; flex-direction: column; gap: 10px; }}
         .message-container {{ display: flex; align-items: center; margin-bottom: 10px; }}
         .user-message {{ background-color: #504f4f; color: white; padding: 10px 15px; border-radius: 10px; max-width: 60%; word-wrap: break-word; }}
@@ -52,7 +53,7 @@ for chat_name in sorted(chat_files, reverse=True):
         if st.button(f"📄 {chat_name}"):
             selected_chat = chat_name  # กำหนดว่าเลือกแชทไหน
     with col2:
-        if st.button("🗑️", key=f"delete_{chat_name}"):
+        if st.button("🗑️", key=f"delete_{chat_name}"):  # ปุ่มลบแชท
             os.remove(os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json"))  # ลบไฟล์ JSON
             st.rerun()  # รีโหลด Sidebar เพื่ออัปเดตรายการแชท
 
@@ -61,6 +62,7 @@ st.sidebar.markdown("---")
 # ปุ่มสร้างแชทใหม่
 new_chat_name = st.sidebar.text_input("➕ Create New Chat")
 if st.sidebar.button("✅ Create") and new_chat_name:
+    # สร้างแชทใหม่และบันทึกเป็นไฟล์ JSON
     with open(os.path.join(CHAT_HISTORY_DIR, f"{new_chat_name}.json"), "w", encoding="utf-8") as file:
         json.dump([], file, ensure_ascii=False, indent=4)
     st.rerun()  # รีโหลดหน้าเพื่ออัปเดตรายการแชท
@@ -78,18 +80,19 @@ def save_chat_history(chat_name, messages):
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# หากเลือกแชทแล้วให้โหลดแชทนั้น
 if selected_chat:
     st.session_state.messages = load_chat_history(selected_chat)
-
-# ✅ ตรวจสอบว่าควรแสดงชื่อแชทหรือไม่
-chat_display_name = selected_chat if selected_chat and selected_chat != "➕ Create New Chat" else ""
+else:
+    # ไม่มีแชทที่เลือกแสดงข้อความเพื่อให้ผู้ใช้สร้างแชทก่อน
+    st.write("Please create or select a chat first.")
 
 # **แสดง Title พร้อม Animation เมื่อเริ่มต้น และหายไปหลังจากเริ่มแชท**
 if not st.session_state.messages:
     st.markdown(
         f"""
         <h1 id="title" style="font-size:35px; color:#ffff;">
-            HI, what do you want me to help with? {chat_display_name}
+            HI, what do you want me to help with? {selected_chat if selected_chat else ""}
         </h1>
         <script>
             function removeTitle() {{
@@ -131,16 +134,11 @@ with st.container():
 user_input = st.chat_input("Type a message...")
 
 if user_input:
-    # ✅ ตรวจสอบว่ามีชื่อแชทแล้วหรือยัง
-    if not selected_chat:
-        selected_chat = user_input[:30]  # ตั้งชื่อแชทจากข้อความแรก
-        save_chat_history(selected_chat, [])  # สร้างไฟล์แชทใหม่
-
     # ✅ แสดงข้อความของ User ทันที
     st.session_state.messages.append(("user", user_input))
     save_chat_history(selected_chat, st.session_state.messages)
 
-    # ✅ แสดงข้อความของ User ก่อนรอ AI ตอบ
+    # แสดงข้อความของ User ก่อนรอ AI ตอบ
     with chat_box:
         st.markdown(
             f"""
@@ -151,19 +149,19 @@ if user_input:
             """, unsafe_allow_html=True
         )
 
-    # ✅ เรียกใช้ AI และแสดงผล
+    # เรียกใช้ AI และแสดงผล
     with st.spinner("🤖 Thinking..."):
         try:
             response = get_ollama_response(user_input)
         except Exception as e:
             response = "⚠️ AI ไม่สามารถตอบกลับได้ โปรดตรวจสอบเซิร์ฟเวอร์!"
-            print(f"Error: {e}")  # ✅ แสดง Error ใน console
+            print(f"Error: {e}")  # แสดง Error ใน console
 
-    # ✅ แสดงข้อความของ AI และบันทึก
+    # แสดงข้อความของ AI และบันทึก
     st.session_state.messages.append(("assistant", response))
     save_chat_history(selected_chat, st.session_state.messages)
 
-    # ✅ แสดงข้อความของ AI ทันที
+    # แสดงข้อความของ AI ทันที
     with chat_box:
         st.markdown(
             f"""
