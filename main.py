@@ -1,19 +1,20 @@
-import streamlit as st
-import os
-import json
-from ollama_service import get_ollama_response
+import streamlit as st  # นำเข้าไลบรารี Streamlit สำหรับสร้างเว็บแอป
+import os  # สำหรับการจัดการกับไฟล์ในระบบ
+import json  # สำหรับการอ่านและเขียนไฟล์ JSON
+from ollama_service import get_ollama_response  # นำเข้าฟังก์ชันที่ใช้ติดต่อกับ Ollama API
 
+# การตั้งค่าหน้าเว็บ
 st.set_page_config(
-    page_title="Ratatouille",  # 🔹 เปลี่ยนเป็นชื่อที่คุณต้องการ
-    page_icon="https://cdn-icons-png.flaticon.com/512/2297/2297338.png",  # 🔹 สามารถใช้ Emoji หรือ URL รูปภาพ
-    layout="wide"  # 🔹 กำหนดให้เว็บแอปเต็มหน้าจอ
+    page_title="Ratatouille",  # ชื่อของหน้าเว็บ
+    page_icon="https://cdn-icons-png.flaticon.com/512/2297/2297338.png",  # ไอคอนสำหรับหน้าเว็บ
+    layout="wide"  # ตั้งค่าให้ใช้ขนาดหน้าเต็ม
 )
 
-# URLs หรือ Path ของรูปโปรไฟล์
-USER_AVATAR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTo9Mw4GhrGCmoZPMCedud0jCIyEGRhB6OIwQ&s"
-AI_AVATAR = "https://tr.rbxcdn.com/180DAY-a0a46bc4bb969aabc6133811ec8ff505/420/420/LayeredAccessory/Webp/noFilter"
+# กำหนด URLs สำหรับรูปโปรไฟล์
+USER_AVATAR = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTo9Mw4GhrGCmoZPMCedud0jCIyEGRhB6OIwQ&s"  # URL ของภาพโปรไฟล์ผู้ใช้
+AI_AVATAR = "https://tr.rbxcdn.com/180DAY-a0a46bc4bb969aabc6133811ec8ff505/420/420/LayeredAccessory/Webp/noFilter"  # URL ของภาพโปรไฟล์ AI
 
-# CSS + JavaScript สำหรับ Animation ของ Title
+# การเพิ่ม CSS และ JavaScript เพื่อใช้กับส่วนต่างๆ ของหน้า
 st.markdown(f"""
     <style>
         .fade-out {{
@@ -31,41 +32,40 @@ st.markdown(f"""
         .avatar {{ width: 40px; height: 40px; border-radius: 50%; margin: 0 10px; }}
         .user-container {{ justify-content: flex-end; }}
         .assistant-container {{ justify-content: flex-start; }}
-        .email_icon
     </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True)  # การปรับแต่ง CSS สำหรับแสดงข้อความและรูปลักษณ์
 
-# กำหนดโฟลเดอร์สำหรับเก็บแชทเก่า
-CHAT_HISTORY_DIR = "chat_history"
-os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
+# ตั้งค่าพื้นที่เก็บแชท
+CHAT_HISTORY_DIR = "chat_history"  # โฟลเดอร์ที่ใช้เก็บข้อมูลแชท
+os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)  # สร้างโฟลเดอร์หากยังไม่มี
 
-# โหลดรายการแชทเก่าทั้งหมด
-chat_files = [f.replace(".json", "") for f in os.listdir(CHAT_HISTORY_DIR) if f.endswith(".json")]
+# โหลดรายการแชทเก่าทั้งหมดจากไฟล์ JSON
+chat_files = [f.replace(".json", "") for f in os.listdir(CHAT_HISTORY_DIR) if f.endswith(".json")]  # โหลดชื่อไฟล์ JSON ทั้งหมด
 
 # ===== 🎨 ปรับ Sidebar ให้แสดงรายการแชทเป็นปุ่มที่กดได้ พร้อมปุ่มลบ ===== #
-st.sidebar.title("📂 Chat History")
+st.sidebar.title("📂 Chat History")  # ตั้งชื่อ Sidebar
 
-selected_chat = None  # ค่าเริ่มต้นของแชทที่เลือก
+selected_chat = None  # ตัวแปรที่ใช้เก็บแชทที่เลือก
 
-# แสดงแชทเป็นปุ่มกดเลือกได้ + ปุ่มลบแชท
+# แสดงแชทเป็นปุ่มให้เลือก พร้อมปุ่มลบแชท
 for chat_name in sorted(chat_files, reverse=True):
-    col1, col2 = st.sidebar.columns([0.8, 0.2])
+    col1, col2 = st.sidebar.columns([0.8, 0.2])  # ใช้คอลัมน์สำหรับแสดงปุ่ม
     with col1:
-        if st.button(f"📄 {chat_name}"):
-            selected_chat = chat_name  # กำหนดว่าเลือกแชทไหน
+        if st.button(f"📄 {chat_name}"):  # แสดงชื่อแชท
+            selected_chat = chat_name  # กำหนดแชทที่เลือก
     with col2:
         if st.button("🗑️", key=f"delete_{chat_name}"):  # ปุ่มลบแชท
-            os.remove(os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json"))  # ลบไฟล์ JSON
+            os.remove(os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json"))  # ลบไฟล์ JSON ของแชทนั้น
             st.rerun()  # รีโหลด Sidebar เพื่ออัปเดตรายการแชท
 
-st.sidebar.markdown("---")
+st.sidebar.markdown("---")  # เส้นคั่นใน Sidebar
 
 # ปุ่มสร้างแชทใหม่
-new_chat_name = st.sidebar.text_input("➕ Create New Chat")
+new_chat_name = st.sidebar.text_input("➕ Create New Chat")  # ช่องกรอกชื่อแชทใหม่
 if st.sidebar.button("✅ Create") and new_chat_name:
     # สร้างแชทใหม่และบันทึกเป็นไฟล์ JSON
     with open(os.path.join(CHAT_HISTORY_DIR, f"{new_chat_name}.json"), "w", encoding="utf-8") as file:
-        json.dump([], file, ensure_ascii=False, indent=4)
+        json.dump([], file, ensure_ascii=False, indent=4)  # บันทึกแชทใหม่เป็นไฟล์ JSON
     st.rerun()  # รีโหลดหน้าเพื่ออัปเดตรายการแชท
 
 # ฟังก์ชันโหลดและบันทึกแชท
@@ -75,17 +75,17 @@ def load_chat_history(chat_name):
 
 def save_chat_history(chat_name, messages):
     with open(os.path.join(CHAT_HISTORY_DIR, f"{chat_name}.json"), "w", encoding="utf-8") as file:
-        json.dump(messages, file, ensure_ascii=False, indent=4)
+        json.dump(messages, file, ensure_ascii=False, indent=4)  # บันทึกข้อมูลแชทใหม่ลงในไฟล์ JSON
 
 # โหลดแชทปัจจุบัน
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = []  # ถ้าไม่มีแชทใน session ให้สร้างเป็นลิสต์เปล่า
 
 # หากเลือกแชทแล้วให้โหลดแชทนั้น
 if selected_chat:
     st.session_state.messages = load_chat_history(selected_chat)
 else:
-    st.write("Please create or select a chat first.")
+    st.write("Please create or select a chat first.")  # หากยังไม่มีแชทที่เลือกให้แสดงข้อความนี้
 
 # **แสดง Title พร้อม Animation เมื่อเริ่มต้น และหายไปหลังจากเริ่มแชท**
 if not st.session_state.messages:
